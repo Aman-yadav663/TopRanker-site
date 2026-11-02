@@ -1,0 +1,6 @@
+{
+  "name": "JEE PYQ 30 Test Series",
+  "description": "Comprehensive JEE Main PYQ Full-Length Test Series platform with 30 mock tests, authentic previous year questions, computer-based test interface, detailed solutions, and in-depth performance analytics.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
