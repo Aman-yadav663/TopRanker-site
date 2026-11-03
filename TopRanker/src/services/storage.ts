@@ -367,7 +367,7 @@ export const storage = {
     if (!token) return null;
 
     try {
-      const res = await fetch('/api/student/analytics', {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/student/analytics`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.ok) {
