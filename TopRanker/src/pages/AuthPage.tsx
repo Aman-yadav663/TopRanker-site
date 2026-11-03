@@ -107,7 +107,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({
     setOtpSandboxPreview(null);
 
     try {
-      const res = await fetch('/api/auth/send-otp', {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/auth/send-otp`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
