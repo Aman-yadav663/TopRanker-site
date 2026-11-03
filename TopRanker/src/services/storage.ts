@@ -337,7 +337,7 @@ export const storage = {
     if (!token) return this.getAttemptHistory();
 
     try {
-      const res = await fetch('/api/student/attempts', {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/student/attempts`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.ok) {
