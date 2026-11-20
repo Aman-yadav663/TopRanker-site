@@ -170,11 +170,11 @@ class EmailService {
       id: `email_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
       recipientEmail: email,
       recipientName: name,
-      subject: `[JEE PYQ 30] ${purposeTitle} — Code: ${otp}`,
+      subject: `[JEE PYQ 30] ${purposeTitle}`,
       type: 'OTP',
       status: this.isConfigured ? 'SENT' : 'SANDBOX_LOGGED',
       sentAt: Date.now(),
-      metadata: { purpose, otp }
+      metadata: { purpose }
     };
 
     if (this.isConfigured && this.transporter) {
@@ -204,23 +204,18 @@ class EmailService {
 
         // Fallback to sandbox logging so candidate flow is not hard-blocked
         return {
-          success: true,
-          status: 'SANDBOX_LOGGED',
-          previewCode: otp,
-          error: `SMTP delivery failed (${err.message}). Code logged securely for verification.`
+          success: false,
+          status: 'FAILED',
+          error: `SMTP delivery failed: ${err.message}`
         };
       }
-    } else {
-      // Sandbox Mode: log code cleanly for local/development use
-      console.log(`[EmailService] [SANDBOX OTP] To: ${email} | Code: ${otp} | Purpose: ${purpose}`);
-      this.emailLogs.push(logEntry);
-
-      return {
-        success: true,
-        status: 'SANDBOX_LOGGED',
-        previewCode: otp
-      };
-    }
+   } else {
+  return {
+    success: false,
+    status: 'FAILED',
+    error: 'Email service is not configured. Please try again later.'
+  };
+}
   }
 
   /**
