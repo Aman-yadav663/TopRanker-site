@@ -52,8 +52,6 @@ export const AuthPage: React.FC<AuthPageProps> = ({
   const [otpSent, setOtpSent] = useState(false);
   const [resendCountdown, setResendCountdown] = useState(0);
   const [otpSending, setOtpSending] = useState(false);
-  const [otpSandboxPreview, setOtpSandboxPreview] = useState<string | null>(null);
-
   // Status & Feedback
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -104,7 +102,6 @@ export const AuthPage: React.FC<AuthPageProps> = ({
 
     setErrorMessage(null);
     setOtpSending(true);
-    setOtpSandboxPreview(null);
 
     try {
       const res = await fetch(`${import.meta.env.VITE_API_URL}/api/auth/send-otp`, {
@@ -122,9 +119,6 @@ export const AuthPage: React.FC<AuthPageProps> = ({
         setOtpSent(true);
         setResendCountdown(60); // 60-second cooldown
         setSuccessMessage(`A 6-digit verification code has been dispatched to ${email.trim()}.`);
-        if (data.previewCode) {
-          setOtpSandboxPreview(data.previewCode);
-        }
         // Focus first OTP input
         setTimeout(() => {
           otpInputsRef.current[0]?.focus();
@@ -356,27 +350,6 @@ export const AuthPage: React.FC<AuthPageProps> = ({
             <span>{successMessage}</span>
           </div>
         )}
-
-        {/* Sandbox Code Helper (when no external SMTP configured) */}
-        {otpSandboxPreview && (
-          <div className="p-3 rounded-xl bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 text-xs text-blue-900 dark:text-blue-200 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <KeyRound className="h-4 w-4 text-blue-600" />
-              <span>Sandbox Test Code: <strong>{otpSandboxPreview}</strong></span>
-            </div>
-            <button
-              type="button"
-              onClick={() => {
-                const chars = otpSandboxPreview.split('');
-                setOtpDigits(chars);
-              }}
-              className="text-[11px] font-bold text-blue-600 underline hover:text-blue-700"
-            >
-              Autofill Code
-            </button>
-          </div>
-        )}
-
         {/* ======================================================== */}
         {/* MODE 1: PASSWORDLESS EMAIL OTP (LOGIN OR REGISTRATION) */}
         {/* ======================================================== */}
