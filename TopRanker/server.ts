@@ -116,7 +116,6 @@ app.post('/api/auth/send-otp', async (req: Request, res: Response) => {
       success: true,
       message: `A 6-digit verification code has been dispatched to ${normEmail}.`,
       status: emailRes.status,
-      previewCode: emailRes.previewCode, // Provided in sandbox mode
       isSmtpConfigured: emailService.isSmtpConfigured()
     });
   } catch (err: any) {
