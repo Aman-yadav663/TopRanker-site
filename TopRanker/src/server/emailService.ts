@@ -42,8 +42,7 @@ class EmailService {
    */
   public async sendOtpEmail(params: SendOtpParams): Promise<{
     success: boolean;
-    status: 'SENT' | 'SANDBOX_LOGGED' | 'FAILED';
-    previewCode?: string;
+    status: 'SENT' | 'FAILED';
     messageId?: string;
     error?: string;
   }> {
