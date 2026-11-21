@@ -116,7 +116,7 @@ app.post('/api/auth/send-otp', async (req: Request, res: Response) => {
       success: true,
       message: `A 6-digit verification code has been dispatched to ${normEmail}.`,
       status: emailRes.status,
-      isSmtpConfigured: emailService.isSmtpConfigured()
+      isEmailConfigured: emailService.isEmailConfigured()
     });
   } catch (err: any) {
     console.error('Send OTP error:', err);
@@ -826,7 +826,7 @@ app.post('/api/student/resend-result-email/:id', requireAuth, async (req: Reques
 app.get('/api/admin/email-logs', requireAdmin, (_req: Request, res: Response) => {
   res.json({
     success: true,
-    isSmtpConfigured: emailService.isSmtpConfigured(),
+    isEmailConfigured: emailService.isEmailConfigured(),
     logs: emailService.getRecentLogs()
   });
 });
