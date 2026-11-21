@@ -1,4 +1,4 @@
-import nodemailer, { type Transporter } from 'nodemailer';
+import { Resend } from 'resend';
 import type { TestResult, EmailNotificationLog } from '../types.ts';
 
 interface SendOtpParams {
@@ -19,44 +19,14 @@ interface SendTestResultParams {
 }
 
 class EmailService {
-  private transporter: Transporter | null = null;
-  private isConfigured: boolean = false;
   private sentNotificationCache: Set<string> = new Set();
   private emailLogs: EmailNotificationLog[] = [];
 
-  constructor() {
-    this.initTransporter();
-  }
+  constructor() {}
 
-  private initTransporter() {
-    const host = process.env.SMTP_HOST;
-    const port = parseInt(process.env.SMTP_PORT || '587', 10);
-    const user = process.env.SMTP_USER;
-    const pass = process.env.SMTP_PASS;
-
-    if (host && user && pass) {
-      try {
-        this.transporter = nodemailer.createTransport({
-          host,
-          port,
-          secure: port === 465,
-          auth: { user, pass }
-        });
-        this.isConfigured = true;
-        console.log('[EmailService] SMTP Transporter initialized successfully with', host);
-      } catch (err) {
-        console.error('[EmailService] Failed to initialize SMTP Transporter:', err);
-        this.isConfigured = false;
-      }
-    } else {
-      this.isConfigured = false;
-      console.log('[EmailService] No SMTP credentials provided. Running in sandbox delivery mode (simulates and logs verified emails).');
-    }
-  }
-
-  public isSmtpConfigured(): boolean {
-    return this.isConfigured;
-  }
+  public isEmailConfigured(): boolean {
+  return Boolean(process.env.RESEND_API_KEY);
+}
 
   public getRecentLogs(): EmailNotificationLog[] {
     return [...this.emailLogs].reverse().slice(0, 50);
@@ -78,7 +48,6 @@ class EmailService {
     error?: string;
   }> {
     const { email, name = 'Student', otp, purpose } = params;
-    const fromAddress = process.env.SMTP_FROM || 'JEE PYQ 30 <notifications@jeepyq.com>';
 
     const purposeTitle =
       purpose === 'REGISTER'
@@ -172,51 +141,64 @@ class EmailService {
       recipientName: name,
       subject: `[JEE PYQ 30] ${purposeTitle}`,
       type: 'OTP',
-      status: this.isConfigured ? 'SENT' : 'SANDBOX_LOGGED',
+      status: 'FAILED',
       sentAt: Date.now(),
       metadata: { purpose }
     };
 
-    if (this.isConfigured && this.transporter) {
-      try {
-        const info = await this.transporter.sendMail({
-          from: fromAddress,
-          to: email,
-          subject: `[JEE PYQ 30] ${purposeTitle}: ${otp}`,
-          text: `Your JEE PYQ 30 verification code is: ${otp}. It is valid for 10 minutes.`,
-          html: htmlContent
-        });
+    
+const apiKey = process.env.RESEND_API_KEY;
 
-        logEntry.status = 'SENT';
-        logEntry.previewUrl = nodemailer.getTestMessageUrl(info) || undefined;
-        this.emailLogs.push(logEntry);
+if (!apiKey) {
+  logEntry.status = 'FAILED';
+  logEntry.error = 'RESEND_API_KEY is not configured';
+  this.emailLogs.push(logEntry);
 
-        return {
-          success: true,
-          status: 'SENT',
-          messageId: info.messageId
-        };
-      } catch (err: any) {
-        console.error('[EmailService] Failed to send real OTP email:', err);
-        logEntry.status = 'FAILED';
-        logEntry.error = err.message || 'SMTP Transport Error';
-        this.emailLogs.push(logEntry);
-
-        // Fallback to sandbox logging so candidate flow is not hard-blocked
-        return {
-          success: false,
-          status: 'FAILED',
-          error: `SMTP delivery failed: ${err.message}`
-        };
-      }
-   } else {
   return {
     success: false,
     status: 'FAILED',
-    error: 'Email service is not configured. Please try again later.'
+    error: 'Email service is not configured.'
   };
 }
+
+try {
+  const resend = new Resend(apiKey);
+
+  const { data, error } = await resend.emails.send({
+    from: 'TopRanker <onboarding@resend.dev>',
+    to: [email],
+    subject: `[JEE PYQ 30] ${purposeTitle}`,
+    text: `Your JEE PYQ 30 verification code is: ${otp}. It is valid for 10 minutes.`,
+    html: htmlContent
+  });
+
+  if (error) {
+    throw new Error(error.message);
   }
+
+  logEntry.status = 'SENT';
+  this.emailLogs.push(logEntry);
+
+  return {
+    success: true,
+    status: 'SENT',
+    messageId: data?.id
+  };
+
+} catch (err: any) {
+  console.error('[EmailService] Failed to send OTP through Resend:', err);
+
+  logEntry.status = 'FAILED';
+  logEntry.error = err.message || 'Resend delivery error';
+  this.emailLogs.push(logEntry);
+
+  return {
+    success: false,
+    status: 'FAILED',
+    error: `Email delivery failed: ${err.message}`
+  };
+}
+}
 
   /**
    * Send Automated Test Result Summary Email to student upon test submission
@@ -237,7 +219,6 @@ class EmailService {
       return { success: true, status: 'SKIPPED', duplicate: true };
     }
 
-    const fromAddress = process.env.SMTP_FROM || 'JEE PYQ 30 <results@jeepyq.com>';
     const formattedDate = new Date(result.submittedAt || Date.now()).toLocaleString('en-IN', {
       timeZone: 'Asia/Kolkata',
       dateStyle: 'medium',
@@ -406,7 +387,7 @@ class EmailService {
       recipientName: studentName,
       subject: `[JEE PYQ 30 Result] ${testTitle}: Score ${result.totalScore}/300 (${result.overallAccuracy}% Accuracy)`,
       type: 'TEST_RESULT',
-      status: this.isConfigured ? 'SENT' : 'SANDBOX_LOGGED',
+      status: 'FAILED',
       sentAt: Date.now(),
       metadata: {
         attemptId,
@@ -417,48 +398,66 @@ class EmailService {
       }
     };
 
-    if (this.isConfigured && this.transporter) {
-      try {
-        const info = await this.transporter.sendMail({
-          from: fromAddress,
-          to: studentEmail,
-          subject: `[JEE PYQ 30 Result] ${testTitle}: Score ${result.totalScore}/300 (${result.overallAccuracy}% Accuracy)`,
-          text: `Hello ${studentName},\nYour test "${testTitle}" has been evaluated.\nScore: ${result.totalScore}/300\nAccuracy: ${result.overallAccuracy}%\nPercentile Estimate: ${result.percentileEstimate}%ile\nView full solutions in your dashboard.`,
-          html: htmlContent
-        });
+    const apiKey = process.env.RESEND_API_KEY;
 
-        this.sentNotificationCache.add(dedupeKey);
-        logEntry.status = 'SENT';
-        this.emailLogs.push(logEntry);
+if (!apiKey) {
+  logEntry.status = 'FAILED';
+  logEntry.error = 'RESEND_API_KEY is not configured';
+  this.emailLogs.push(logEntry);
 
-        return {
-          success: true,
-          status: 'SENT',
-          messageId: info.messageId
-        };
-      } catch (err: any) {
-        console.error('[EmailService] Failed to send real test result email:', err);
-        logEntry.status = 'FAILED';
-        logEntry.error = err.message || 'SMTP Transport Error';
-        this.emailLogs.push(logEntry);
+  return {
+    success: false,
+    status: 'FAILED',
+    error: 'Email service is not configured.'
+  };
+}
 
-        return {
-          success: false,
-          status: 'FAILED',
-          error: err.message
-        };
-      }
-    } else {
-      // Sandbox mode: register as sent in test environment
-      console.log(`[EmailService] [SANDBOX RESULT EMAIL] To: ${studentEmail} | Test: ${testTitle} | Score: ${result.totalScore}/300 | Acc: ${result.overallAccuracy}%`);
-      this.sentNotificationCache.add(dedupeKey);
-      this.emailLogs.push(logEntry);
+try {
+  const resend = new Resend(apiKey);
 
-      return {
-        success: true,
-        status: 'SANDBOX_LOGGED'
-      };
-    }
+  const { data, error } = await resend.emails.send({
+    from: 'TopRanker <onboarding@resend.dev>',
+    to: [studentEmail],
+    subject: `[JEE PYQ 30 Result] ${testTitle}: Score ${result.totalScore}/300`,
+    text: `Hello ${studentName},
+
+Your test "${testTitle}" has been evaluated.
+
+Score: ${result.totalScore}/300
+Accuracy: ${result.overallAccuracy}%
+Percentile Estimate: ${result.percentileEstimate}%ile
+
+View full solutions in your dashboard.`,
+    html: htmlContent
+  });
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  this.sentNotificationCache.add(dedupeKey);
+  logEntry.status = 'SENT';
+  this.emailLogs.push(logEntry);
+
+  return {
+    success: true,
+    status: 'SENT',
+    messageId: data?.id
+  };
+
+} catch (err: any) {
+  console.error('[EmailService] Failed to send test result through Resend:', err);
+
+  logEntry.status = 'FAILED';
+  logEntry.error = err.message || 'Resend delivery error';
+  this.emailLogs.push(logEntry);
+
+  return {
+    success: false,
+    status: 'FAILED',
+    error: `Email delivery failed: ${err.message}`
+  };
+}
   }
 }
 
